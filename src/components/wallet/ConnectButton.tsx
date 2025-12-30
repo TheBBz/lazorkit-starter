@@ -22,6 +22,7 @@
 import { useWallet } from '@lazorkit/wallet';
 import { Button } from '@/components/ui/button';
 import { Loader2, Fingerprint, LogOut } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function ConnectButton() {
   // useWallet hook provides all wallet functionality
@@ -34,11 +35,15 @@ export function ConnectButton() {
   // Handle connect - this triggers the passkey authentication flow
   // For new users: Creates a new passkey and smart wallet
   // For returning users: Signs in with existing passkey
+  // Using feeMode: 'user' to avoid paymaster dependency during connection
   const handleConnect = async () => {
     try {
-      await connect();
+      await connect({ feeMode: 'user' });
+      toast.success('Wallet connected successfully!');
     } catch (error) {
       console.error('Connection failed:', error);
+      const message = error instanceof Error ? error.message : 'Connection failed';
+      toast.error('Connection failed', { description: message });
     }
   };
 
@@ -94,9 +99,13 @@ export function ConnectButtonLarge() {
 
   const handleConnect = async () => {
     try {
-      await connect();
+      // Using feeMode: 'user' to avoid paymaster dependency during connection
+      await connect({ feeMode: 'user' });
+      toast.success('Wallet connected successfully!');
     } catch (error) {
       console.error('Connection failed:', error);
+      const message = error instanceof Error ? error.message : 'Connection failed';
+      toast.error('Connection failed', { description: message });
     }
   };
 
