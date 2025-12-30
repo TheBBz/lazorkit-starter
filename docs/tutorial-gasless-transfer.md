@@ -1,6 +1,8 @@
-# Tutorial: Gasless USDC Transfers with Lazorkit
+# Tutorial: Gasless Token Transfers with Lazorkit
 
-Learn how to send USDC on Solana without requiring users to hold SOL for gas fees. This tutorial shows you how to leverage Lazorkit's Paymaster for sponsored transactions.
+Learn how to send tokens on Solana without requiring users to hold SOL for gas fees. This tutorial shows you how to leverage Lazorkit's Paymaster for sponsored transactions.
+
+> **Note:** This starter template uses **tUSDC** (Test USDC) - a custom token we deploy on devnet. The same approach works for real USDC on mainnet.
 
 ## Table of Contents
 
@@ -84,8 +86,9 @@ import { useState } from 'react';
 import { useWallet } from '@lazorkit/wallet';
 import { PublicKey } from '@solana/web3.js';
 
-// USDC mint address on Devnet
-const USDC_MINT_DEVNET = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+// Token mint address (tUSDC in this starter, real USDC on mainnet)
+// In production, use: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v' (mainnet USDC)
+const TOKEN_MINT = process.env.NEXT_PUBLIC_TUSDC_MINT_ADDRESS || 'YOUR_TOKEN_MINT';
 
 export function UsdcTransferForm() {
   const { isConnected, smartWalletPubkey } = useWallet();
@@ -214,9 +217,10 @@ import {
 } from '@solana/spl-token';
 
 // Constants
-const USDC_MINT_DEVNET = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
-const USDC_DECIMALS = 6;
-const RPC_URL = 'https://api.devnet.solana.com';
+// Token mint address (tUSDC in this starter, real USDC on mainnet)
+const TOKEN_MINT = process.env.NEXT_PUBLIC_TUSDC_MINT_ADDRESS || 'YOUR_TOKEN_MINT';
+const TOKEN_DECIMALS = 6; // Both tUSDC and real USDC use 6 decimals
+const RPC_URL = process.env.NEXT_PUBLIC_LAZORKIT_RPC_URL || 'https://api.devnet.solana.com';
 
 export function UsdcTransferForm() {
   const { isConnected, smartWalletPubkey, signAndSendTransaction } = useWallet();
@@ -236,16 +240,16 @@ export function UsdcTransferForm() {
 
     try {
       const connection = new Connection(RPC_URL, 'confirmed');
-      const usdcMint = new PublicKey(USDC_MINT_DEVNET);
+      const tokenMint = new PublicKey(TOKEN_MINT);
       const recipientPubkey = new PublicKey(recipient);
 
-      // Convert UI amount to raw amount (USDC has 6 decimals)
-      const rawAmount = Math.floor(parseFloat(amount) * Math.pow(10, USDC_DECIMALS));
+      // Convert UI amount to raw amount (6 decimals for USDC/tUSDC)
+      const rawAmount = Math.floor(parseFloat(amount) * Math.pow(10, TOKEN_DECIMALS));
 
       // Derive Associated Token Accounts (ATAs)
       // IMPORTANT: allowOwnerOffCurve=true because Lazorkit smart wallets are PDAs
-      const senderAta = await getAssociatedTokenAddress(usdcMint, smartWalletPubkey, true);
-      const recipientAta = await getAssociatedTokenAddress(usdcMint, recipientPubkey, true);
+      const senderAta = await getAssociatedTokenAddress(tokenMint, smartWalletPubkey, true);
+      const recipientAta = await getAssociatedTokenAddress(tokenMint, recipientPubkey, true);
 
       // Build instructions
       const instructions = [];
@@ -259,7 +263,7 @@ export function UsdcTransferForm() {
             smartWalletPubkey,  // payer
             recipientAta,       // ata
             recipientPubkey,    // owner
-            usdcMint,           // mint
+            tokenMint,          // mint
             TOKEN_PROGRAM_ID,
             ASSOCIATED_TOKEN_PROGRAM_ID
           )
@@ -281,7 +285,7 @@ export function UsdcTransferForm() {
         instructions,
         transactionOptions: {
           // This is the magic - specifying feeToken enables gasless
-          feeToken: USDC_MINT_DEVNET,
+          feeToken: TOKEN_MINT,
         },
       });
 
@@ -415,16 +419,17 @@ The Solana runtime doesn't care *who* pays the transaction fee - it just needs t
 
 ## Testing on Devnet
 
-### Get Test USDC
+### Get Test Tokens
 
-1. **Get Test SOL first** (needed for the faucet):
+1. **Get Test SOL first**:
    - Visit [faucet.solana.com](https://faucet.solana.com)
    - Enter your smart wallet address
    - Request an airdrop
 
-2. **Get Devnet USDC**:
-   - Visit [SPL Token Faucet](https://spl-token-faucet.com/?token-name=USDC-Dev)
-   - Connect and receive test USDC
+2. **Get tUSDC via Swap** (in this starter):
+   - Use the built-in swap feature to convert SOL → tUSDC
+   - The swap uses real Jupiter price feeds
+   - See [Tutorial 3: Token Swaps](./tutorial-token-swap.md)
 
 3. **Test the Transfer**:
    - Enter a recipient address (use another wallet or your own)
@@ -434,10 +439,7 @@ The Solana runtime doesn't care *who* pays the transaction fee - it just needs t
 
 ### Test Recipient Address
 
-Need an address to test with? Create another passkey wallet in a different browser, or use this devnet faucet address:
-```
-DemouCYGxkqxNX5Tw8DKJL2EpGQe5cCxFdJ5pHpgGpYf
-```
+Need an address to test with? Create another passkey wallet in a different browser, or send to your own address to test the flow.
 
 ## Production Considerations
 
@@ -448,7 +450,7 @@ In production, you may want to:
 ```tsx
 // Option 1: Always use USDC for fees (gasless)
 transactionOptions: {
-  feeToken: USDC_MINT_MAINNET,
+  feeToken: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', // Mainnet USDC
 }
 
 // Option 2: Let user pay in SOL (not gasless)
@@ -457,8 +459,9 @@ transactionOptions: {
 }
 
 // Option 3: Conditional based on user preference
+const USDC_MAINNET = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 transactionOptions: {
-  feeToken: userPrefersGasless ? USDC_MINT_MAINNET : undefined,
+  feeToken: userPrefersGasless ? USDC_MAINNET : undefined,
 }
 ```
 
@@ -500,6 +503,8 @@ You've learned how to:
 ---
 
 **Prev:** [Tutorial 1 - Passkey Wallet](./tutorial-passkey-wallet.md)
+
+**Next:** [Tutorial 3 - Token Swaps](./tutorial-token-swap.md)
 
 **Resources:**
 - [Lazorkit Documentation](https://docs.lazorkit.com)
