@@ -97,15 +97,6 @@ export default function Dashboard() {
                   </Button>
                   <Button variant="outline" size="sm" asChild>
                     <a
-                      href="https://spl-token-faucet.com/?token-name=USDC-Dev"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Get Test USDC
-                    </a>
-                  </Button>
-                  <Button variant="outline" size="sm" asChild>
-                    <a
                       href="https://docs.lazorkit.com"
                       target="_blank"
                       rel="noopener noreferrer"
