@@ -243,8 +243,9 @@ export function UsdcTransferForm() {
       const rawAmount = Math.floor(parseFloat(amount) * Math.pow(10, USDC_DECIMALS));
 
       // Derive Associated Token Accounts (ATAs)
-      const senderAta = await getAssociatedTokenAddress(usdcMint, smartWalletPubkey);
-      const recipientAta = await getAssociatedTokenAddress(usdcMint, recipientPubkey);
+      // IMPORTANT: allowOwnerOffCurve=true because Lazorkit smart wallets are PDAs
+      const senderAta = await getAssociatedTokenAddress(usdcMint, smartWalletPubkey, true);
+      const recipientAta = await getAssociatedTokenAddress(usdcMint, recipientPubkey, true);
 
       // Build instructions
       const instructions = [];

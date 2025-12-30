@@ -1,15 +1,12 @@
 'use client';
 
 /**
- * TokenSwapForm - Gasless token swap component using Jupiter
+ * TokenSwapForm - SOL to tUSDC swap component
  *
- * This component demonstrates:
- * - Integration with Jupiter DEX aggregator for best swap rates
- * - Gasless token swaps via Lazorkit Paymaster
- * - Real-time quote fetching and price display
- *
- * Jupiter aggregates liquidity from multiple DEXes on Solana to find
- * the best swap rates for users.
+ * This component enables token swaps on devnet:
+ * - Uses real SOL/USDC price from Jupiter API
+ * - User sends SOL to pool, receives tUSDC back
+ * - Two-step process: 1) Send SOL, 2) Receive tUSDC
  *
  * @example
  * ```tsx
@@ -20,8 +17,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useWallet } from '@lazorkit/wallet';
 import { useWalletBalance } from '@/hooks/useWalletBalance';
-import { Connection, VersionedTransaction, PublicKey } from '@solana/web3.js';
-import { LAZORKIT_CONFIG, USDC_MINT_ADDRESS, getTransactionUrl } from '@/lib/constants';
+import { PublicKey, SystemProgram } from '@solana/web3.js';
+import { TUSDC_CONFIG, getTransactionUrl } from '@/lib/constants';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,52 +34,21 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Token definitions for the swap interface
-const TOKENS = {
-  SOL: {
-    symbol: 'SOL',
-    name: 'Solana',
-    mint: 'So11111111111111111111111111111111111111112', // Wrapped SOL
-    decimals: 9,
-    color: 'from-purple-500 to-blue-500',
-  },
-  USDC: {
-    symbol: 'USDC',
-    name: 'USD Coin',
-    mint: USDC_MINT_ADDRESS,
-    decimals: 6,
-    color: 'from-blue-500 to-blue-600',
-  },
-} as const;
-
-type TokenKey = keyof typeof TOKENS;
 type TxState = 'idle' | 'quoting' | 'swapping' | 'confirming' | 'success' | 'error';
 
-// Jupiter API base URL
-const JUPITER_API = 'https://quote-api.jup.ag/v6';
-
-interface QuoteResponse {
-  inputMint: string;
-  outputMint: string;
-  inAmount: string;
-  outAmount: string;
-  priceImpactPct: string;
-  swapMode: string;
-  routePlan: Array<{
-    swapInfo: {
-      label: string;
-    };
-  }>;
+interface SwapQuote {
+  solAmount: number;
+  tusdcAmount: number;
+  rate: number;
+  priceImpact: number;
 }
 
 export function TokenSwapForm() {
   const { isConnected, smartWalletPubkey, signAndSendTransaction } = useWallet();
 
   // Form state
-  const [inputToken, setInputToken] = useState<TokenKey>('SOL');
-  const [outputToken, setOutputToken] = useState<TokenKey>('USDC');
-  const [inputAmount, setInputAmount] = useState('');
-  const [quote, setQuote] = useState<QuoteResponse | null>(null);
+  const [solAmount, setSolAmount] = useState('');
+  const [quote, setQuote] = useState<SwapQuote | null>(null);
   const [txState, setTxState] = useState<TxState>('idle');
   const [txSignature, setTxSignature] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -91,31 +57,11 @@ export function TokenSwapForm() {
   const address = smartWalletPubkey?.toString() || null;
   const { solBalance, usdcBalance, refresh: refreshBalance } = useWalletBalance(address);
 
-  // Get balance for selected input token
-  const getInputBalance = () => {
-    return inputToken === 'SOL' ? solBalance : usdcBalance;
-  };
-
-  // Calculate output amount from quote
-  const getOutputAmount = () => {
-    if (!quote) return '';
-    const outToken = TOKENS[outputToken];
-    const rawAmount = BigInt(quote.outAmount);
-    return (Number(rawAmount) / Math.pow(10, outToken.decimals)).toFixed(outToken.decimals === 6 ? 2 : 4);
-  };
-
-  // Swap input and output tokens
-  const handleSwapTokens = () => {
-    setInputToken(outputToken);
-    setOutputToken(inputToken);
-    setInputAmount('');
-    setQuote(null);
-  };
-
-  // Fetch quote from Jupiter
-  const fetchQuote = useCallback(async () => {
-    if (!inputAmount || parseFloat(inputAmount) <= 0) {
+  // Fetch quote from our API
+  const fetchQuote = useCallback(async (amount: string) => {
+    if (!amount || parseFloat(amount) <= 0 || !smartWalletPubkey) {
       setQuote(null);
+      setTxState('idle');
       return;
     }
 
@@ -123,42 +69,44 @@ export function TokenSwapForm() {
     setError(null);
 
     try {
-      const inToken = TOKENS[inputToken];
-      const outToken = TOKENS[outputToken];
+      // Fetch price from our API
+      const response = await fetch('/api/swap');
+      const data = await response.json();
 
-      // Convert UI amount to raw amount
-      const rawAmount = Math.floor(parseFloat(inputAmount) * Math.pow(10, inToken.decimals));
-
-      // Fetch quote from Jupiter API
-      const response = await fetch(
-        `${JUPITER_API}/quote?inputMint=${inToken.mint}&outputMint=${outToken.mint}&amount=${rawAmount}&slippageBps=50`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch quote');
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to get price');
       }
 
-      const quoteData = await response.json();
-      setQuote(quoteData);
+      const solAmountNum = parseFloat(amount);
+      setQuote({
+        solAmount: solAmountNum,
+        tusdcAmount: solAmountNum * data.solPrice,
+        rate: data.solPrice,
+        priceImpact: 0.1,
+      });
       setTxState('idle');
     } catch (err) {
       console.error('Quote error:', err);
-      setError('Failed to get quote. Try a different amount.');
+      setError(err instanceof Error ? err.message : 'Failed to get quote');
       setTxState('error');
       setQuote(null);
     }
-  }, [inputAmount, inputToken, outputToken]);
+  }, [smartWalletPubkey]);
 
-  // Debounced quote fetching
+  // Debounced quote fetching - only trigger on solAmount change
   useEffect(() => {
+    // Clear quote if empty
+    if (!solAmount || parseFloat(solAmount) <= 0) {
+      setQuote(null);
+      return;
+    }
+
     const timer = setTimeout(() => {
-      if (inputAmount && parseFloat(inputAmount) > 0) {
-        fetchQuote();
-      }
+      fetchQuote(solAmount);
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [inputAmount, fetchQuote]);
+  }, [solAmount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Execute the swap
   const handleSwap = async () => {
@@ -167,72 +115,61 @@ export function TokenSwapForm() {
       return;
     }
 
+    // Check balance
+    if (parseFloat(solAmount) > solBalance) {
+      toast.error('Insufficient SOL balance');
+      return;
+    }
+
     setTxState('swapping');
     setError(null);
     setTxSignature(null);
 
     try {
-      // Get swap transaction from Jupiter
-      const swapResponse = await fetch(`${JUPITER_API}/swap`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          quoteResponse: quote,
-          userPublicKey: smartWalletPubkey.toString(),
-          wrapAndUnwrapSol: true,
-          dynamicComputeUnitLimit: true,
-          prioritizationFeeLamports: 'auto',
-        }),
+      const poolWallet = new PublicKey(TUSDC_CONFIG.poolWallet);
+      const lamports = Math.floor(parseFloat(solAmount) * 1_000_000_000); // Convert SOL to lamports
+
+      // Step 1: User sends SOL to pool
+      // Create SOL transfer instruction
+      const transferInstruction = SystemProgram.transfer({
+        fromPubkey: smartWalletPubkey,
+        toPubkey: poolWallet,
+        lamports,
       });
-
-      if (!swapResponse.ok) {
-        throw new Error('Failed to create swap transaction');
-      }
-
-      const { swapTransaction } = await swapResponse.json();
-
-      // Deserialize the transaction
-      const swapTransactionBuf = Buffer.from(swapTransaction, 'base64');
-      const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-
-      // Get the instructions from the transaction
-      // Note: Jupiter returns a versioned transaction, we need to extract instructions
-      // For Lazorkit, we need to rebuild this with the smart wallet
 
       setTxState('confirming');
 
-      // For Jupiter swaps with Lazorkit, we use the raw transaction
-      // The paymaster will handle the fees
-      const connection = new Connection(LAZORKIT_CONFIG.rpcUrl, 'confirmed');
-
-      // Sign with Lazorkit - this will use the passkey
-      // Note: For versioned transactions from Jupiter, we need a different approach
-      // Let's use a simpler method - direct signing
-
-      // Get fresh blockhash
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.message.recentBlockhash = blockhash;
-
-      // For now, we'll submit directly since Jupiter transactions are complex
-      // In production, you'd want to integrate this more deeply with Lazorkit
+      // Sign and send with Lazorkit
       const signature = await signAndSendTransaction({
-        instructions: [], // Jupiter handles instructions internally
-        transactionOptions: {
-          feeToken: USDC_MINT_ADDRESS,
-        },
+        instructions: [transferInstruction],
       });
 
-      // Wait for confirmation
-      await connection.confirmTransaction(signature, 'confirmed');
+      // Step 2: Backend sends tUSDC to user
+      // Call API to complete the swap
+      const completeResponse = await fetch('/api/swap/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userWallet: smartWalletPubkey.toString(),
+          solAmount: parseFloat(solAmount),
+          solTxSignature: signature,
+        }),
+      });
+
+      const completeData = await completeResponse.json();
+
+      if (!completeResponse.ok || completeData.error) {
+        throw new Error(completeData.error || 'Failed to complete swap');
+      }
 
       setTxState('success');
-      setTxSignature(signature);
+      setTxSignature(completeData.signature || signature);
 
       toast.success('Swap successful!', {
-        description: `Swapped ${inputAmount} ${inputToken} for ${getOutputAmount()} ${outputToken}`,
+        description: `Swapped ${solAmount} SOL for ${quote.tusdcAmount.toFixed(2)} tUSDC`,
         action: {
           label: 'View',
-          onClick: () => window.open(getTransactionUrl(signature), '_blank'),
+          onClick: () => window.open(getTransactionUrl(completeData.signature || signature), '_blank'),
         },
       });
 
@@ -240,7 +177,7 @@ export function TokenSwapForm() {
       await refreshBalance();
 
       // Reset form
-      setInputAmount('');
+      setSolAmount('');
       setQuote(null);
     } catch (err) {
       setTxState('error');
@@ -256,7 +193,7 @@ export function TokenSwapForm() {
     setTxState('idle');
     setTxSignature(null);
     setError(null);
-    setInputAmount('');
+    setSolAmount('');
     setQuote(null);
   };
 
@@ -278,7 +215,7 @@ export function TokenSwapForm() {
         <CardContent className="space-y-4">
           <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
             <p className="text-sm text-green-600 dark:text-green-400">
-              Successfully swapped tokens!
+              Successfully swapped SOL for tUSDC!
             </p>
           </div>
 
@@ -311,24 +248,24 @@ export function TokenSwapForm() {
       <CardHeader>
         <div className="flex items-center gap-2">
           <Zap className="h-5 w-5" />
-          <CardTitle>Swap Tokens</CardTitle>
+          <CardTitle>Swap SOL → tUSDC</CardTitle>
         </div>
         <CardDescription>
-          Swap tokens gaslessly via Jupiter aggregator
+          Swap SOL for tUSDC using real-time market prices
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Input Token */}
+        {/* Input: SOL */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>You Pay</Label>
             <button
               type="button"
               className="text-xs text-primary hover:underline"
-              onClick={() => setInputAmount(getInputBalance().toString())}
+              onClick={() => setSolAmount(Math.max(0, solBalance - 0.01).toFixed(4))}
               disabled={txState !== 'idle'}
             >
-              Balance: {getInputBalance().toFixed(inputToken === 'SOL' ? 4 : 2)} {inputToken}
+              Balance: {solBalance.toFixed(4)} SOL
             </button>
           </div>
           <div className="flex gap-2">
@@ -336,57 +273,52 @@ export function TokenSwapForm() {
               <Input
                 type="number"
                 placeholder="0.00"
-                value={inputAmount}
-                onChange={(e) => setInputAmount(e.target.value)}
+                value={solAmount}
+                onChange={(e) => setSolAmount(e.target.value)}
                 disabled={txState !== 'idle'}
                 min="0"
                 step="0.01"
               />
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-muted rounded-lg min-w-[100px]">
-              <div className={`h-6 w-6 rounded-full bg-gradient-to-br ${TOKENS[inputToken].color} flex items-center justify-center`}>
-                <span className="text-white text-xs font-bold">
-                  {inputToken === 'SOL' ? 'S' : '$'}
-                </span>
+              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center">
+                <span className="text-white text-xs font-bold">S</span>
               </div>
-              <span className="font-medium">{inputToken}</span>
+              <span className="font-medium">SOL</span>
             </div>
           </div>
         </div>
 
-        {/* Swap Direction Button */}
+        {/* Arrow */}
         <div className="flex justify-center">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleSwapTokens}
-            disabled={txState !== 'idle'}
-            className="rounded-full"
-          >
-            <ArrowDownUp className="h-4 w-4" />
-          </Button>
+          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+            <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
+          </div>
         </div>
 
-        {/* Output Token */}
+        {/* Output: tUSDC */}
         <div className="space-y-2">
-          <Label>You Receive</Label>
+          <div className="flex items-center justify-between">
+            <Label>You Receive</Label>
+            <span className="text-xs text-muted-foreground">
+              Balance: {usdcBalance.toFixed(2)} {TUSDC_CONFIG.symbol}
+            </span>
+          </div>
           <div className="flex gap-2">
             <div className="flex-1">
               <Input
                 type="text"
                 placeholder="0.00"
-                value={txState === 'quoting' ? '...' : getOutputAmount()}
+                value={txState === 'quoting' ? '...' : (quote?.tusdcAmount.toFixed(2) || '')}
                 disabled
                 className="bg-muted"
               />
             </div>
             <div className="flex items-center gap-2 px-4 py-2 bg-muted rounded-lg min-w-[100px]">
-              <div className={`h-6 w-6 rounded-full bg-gradient-to-br ${TOKENS[outputToken].color} flex items-center justify-center`}>
-                <span className="text-white text-xs font-bold">
-                  {outputToken === 'SOL' ? 'S' : '$'}
-                </span>
+              <div className="h-6 w-6 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
+                <span className="text-white text-xs font-bold">$</span>
               </div>
-              <span className="font-medium">{outputToken}</span>
+              <span className="font-medium">{TUSDC_CONFIG.symbol}</span>
             </div>
           </div>
         </div>
@@ -398,23 +330,17 @@ export function TokenSwapForm() {
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Rate</span>
-                <span>
-                  1 {inputToken} ≈ {(parseFloat(getOutputAmount()) / parseFloat(inputAmount)).toFixed(4)} {outputToken}
-                </span>
+                <span>1 SOL ≈ {quote.rate.toFixed(2)} {TUSDC_CONFIG.symbol}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Price Impact</span>
-                <span className={parseFloat(quote.priceImpactPct) > 1 ? 'text-red-500' : ''}>
-                  {parseFloat(quote.priceImpactPct).toFixed(2)}%
+                <span className={quote.priceImpact > 1 ? 'text-red-500' : ''}>
+                  {quote.priceImpact.toFixed(2)}%
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Route</span>
-                <span>{quote.routePlan?.[0]?.swapInfo?.label || 'Direct'}</span>
-              </div>
-              <div className="flex justify-between">
                 <span className="text-muted-foreground">Network Fee</span>
-                <span className="text-green-600 dark:text-green-400">Sponsored (Gasless)</span>
+                <span>~0.000005 SOL</span>
               </div>
             </div>
           </>
@@ -431,7 +357,7 @@ export function TokenSwapForm() {
         <Button
           className="w-full gap-2"
           onClick={handleSwap}
-          disabled={!quote || txState !== 'idle' || parseFloat(inputAmount) > getInputBalance()}
+          disabled={!quote || txState !== 'idle' || parseFloat(solAmount) > solBalance}
         >
           {txState === 'quoting' && (
             <>
@@ -454,7 +380,7 @@ export function TokenSwapForm() {
           {txState === 'idle' && (
             <>
               <ArrowDownUp className="h-4 w-4" />
-              {quote ? 'Swap Tokens' : 'Enter Amount'}
+              {quote ? 'Swap Now' : 'Enter Amount'}
             </>
           )}
           {txState === 'error' && 'Try Again'}
@@ -465,7 +391,7 @@ export function TokenSwapForm() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={fetchQuote}
+            onClick={() => fetchQuote(solAmount)}
             className="w-full gap-2"
           >
             <RefreshCw className="h-4 w-4" />
@@ -476,8 +402,8 @@ export function TokenSwapForm() {
         {/* Info Box */}
         <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
           <p className="text-xs text-blue-600 dark:text-blue-400">
-            <strong>Powered by Jupiter:</strong> Best rates across all Solana DEXes.
-            Your swap is executed gaslessly - no SOL needed for fees!
+            <strong>Test Token:</strong> tUSDC is a test token for this demo.
+            Prices are based on real SOL/USDC rates from Jupiter.
           </p>
         </div>
       </CardContent>

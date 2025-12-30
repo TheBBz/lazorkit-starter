@@ -51,11 +51,12 @@ export function useWalletBalance(address: string | null): UseWalletBalanceReturn
       const lamports = await connection.getBalance(publicKey);
       setSolBalance(lamports / LAMPORTS_PER_SOL);
 
-      // Fetch USDC balance
+      // Fetch USDC/tUSDC balance
       // First, derive the Associated Token Account (ATA) address
       try {
         const usdcMint = new PublicKey(USDC_MINT_ADDRESS);
-        const ataAddress = await getAssociatedTokenAddress(usdcMint, publicKey);
+        // allowOwnerOffCurve=true because Lazorkit smart wallets are PDAs
+        const ataAddress = await getAssociatedTokenAddress(usdcMint, publicKey, true);
 
         // Get the token account info
         const tokenAccount = await getAccount(connection, ataAddress);

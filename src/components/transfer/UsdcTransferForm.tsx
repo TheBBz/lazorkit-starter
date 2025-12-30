@@ -35,6 +35,7 @@ import {
   LAZORKIT_CONFIG,
   USDC_MINT_ADDRESS,
   USDC_DECIMALS,
+  TUSDC_CONFIG,
   getTransactionUrl,
 } from '@/lib/constants';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -107,8 +108,9 @@ export function UsdcTransferForm() {
 
       // Derive Associated Token Accounts (ATAs)
       // ATAs are deterministic addresses that hold SPL tokens for a wallet
-      const senderAta = await getAssociatedTokenAddress(usdcMint, senderPubkey);
-      const recipientAta = await getAssociatedTokenAddress(usdcMint, recipientPubkey);
+      // allowOwnerOffCurve=true because Lazorkit smart wallets are PDAs
+      const senderAta = await getAssociatedTokenAddress(usdcMint, senderPubkey, true);
+      const recipientAta = await getAssociatedTokenAddress(usdcMint, recipientPubkey, true);
 
       // Build instructions array
       const instructions = [];
@@ -171,7 +173,7 @@ export function UsdcTransferForm() {
       setTxSignature(signature);
 
       toast.success('Transfer successful!', {
-        description: `Sent ${amount} USDC`,
+        description: `Sent ${amount} ${TUSDC_CONFIG.symbol}`,
         action: {
           label: 'View',
           onClick: () => window.open(getTransactionUrl(signature), '_blank'),
@@ -218,7 +220,7 @@ export function UsdcTransferForm() {
         <CardContent className="space-y-4">
           <div className="p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
             <p className="text-sm text-green-600 dark:text-green-400">
-              Successfully sent {amount} USDC
+              Successfully sent {amount} {TUSDC_CONFIG.symbol}
             </p>
           </div>
 
@@ -251,10 +253,10 @@ export function UsdcTransferForm() {
       <CardHeader>
         <div className="flex items-center gap-2">
           <Send className="h-5 w-5" />
-          <CardTitle>Send USDC</CardTitle>
+          <CardTitle>Send {TUSDC_CONFIG.symbol}</CardTitle>
         </div>
         <CardDescription>
-          Send USDC gaslessly - no SOL needed for transaction fees
+          Send {TUSDC_CONFIG.symbol} gaslessly - no SOL needed for transaction fees
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -281,14 +283,14 @@ export function UsdcTransferForm() {
         {/* Amount Input */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="amount">Amount (USDC)</Label>
+            <Label htmlFor="amount">Amount ({TUSDC_CONFIG.symbol})</Label>
             <button
               type="button"
               className="text-xs text-primary hover:underline"
               onClick={() => setAmount(usdcBalance.toString())}
               disabled={txState !== 'idle'}
             >
-              Max: {usdcBalance.toFixed(2)} USDC
+              Max: {usdcBalance.toFixed(2)} {TUSDC_CONFIG.symbol}
             </button>
           </div>
           <Input
@@ -314,7 +316,7 @@ export function UsdcTransferForm() {
             <p className="text-sm font-medium">Transaction Summary</p>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Amount</span>
-              <span className="font-mono">{parseFloat(amount).toFixed(2)} USDC</span>
+              <span className="font-mono">{parseFloat(amount).toFixed(2)} {TUSDC_CONFIG.symbol}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Network Fee</span>
@@ -359,7 +361,7 @@ export function UsdcTransferForm() {
           {txState === 'idle' && (
             <>
               <ArrowRight className="h-4 w-4" />
-              Send USDC
+              Send {TUSDC_CONFIG.symbol}
             </>
           )}
           {txState === 'error' && 'Try Again'}
@@ -369,7 +371,7 @@ export function UsdcTransferForm() {
         <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
           <p className="text-xs text-blue-600 dark:text-blue-400">
             <strong>How it works:</strong> Lazorkit&apos;s Paymaster sponsors the transaction fee,
-            so you don&apos;t need any SOL to send USDC. Your passkey securely signs the
+            so you don&apos;t need any SOL to send {TUSDC_CONFIG.symbol}. Your passkey securely signs the
             transaction.
           </p>
         </div>
