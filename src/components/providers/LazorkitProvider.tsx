@@ -37,11 +37,11 @@ export function LazorkitClientProvider({ children }: LazorkitClientProviderProps
       // Portal URL handles the passkey authentication flow
       // This is where WebAuthn credentials are created and verified
       portalUrl={LAZORKIT_CONFIG.portalUrl}
-      // Paymaster configuration enables gasless transactions
-      // The paymaster sponsors transaction fees so users don't need SOL
-      paymasterConfig={{
-        paymasterUrl: LAZORKIT_CONFIG.paymasterUrl,
-      }}
+      // NOTE: Paymaster temporarily disabled due to service being down (503)
+      // When paymaster is back online, uncomment this to enable gasless transactions:
+      // paymasterConfig={{
+      //   paymasterUrl: LAZORKIT_CONFIG.paymasterUrl,
+      // }}
     >
       {children}
     </LazorkitProvider>
