@@ -326,6 +326,3 @@ const ata = await getAssociatedTokenAddress(
 );
 ```
 
----
-
-Built for the [Lazorkit Bounty](https://lazorkit.com/bounty)
