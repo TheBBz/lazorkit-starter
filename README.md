@@ -52,7 +52,7 @@ The default configuration connects to Solana Devnet. Edit `.env.local` if you ne
 ```env
 NEXT_PUBLIC_LAZORKIT_RPC_URL=https://api.devnet.solana.com
 NEXT_PUBLIC_LAZORKIT_PORTAL_URL=https://portal.lazor.sh
-NEXT_PUBLIC_LAZORKIT_PAYMASTER_URL=https://lazorkit-paymaster.onrender.com
+NEXT_PUBLIC_LAZORKIT_PAYMASTER_URL=https://kora.devnet.lazorkit.com
 ```
 
 4. **Start the development server**
