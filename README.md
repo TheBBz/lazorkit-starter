@@ -31,7 +31,7 @@ A production-ready Next.js starter template demonstrating **Lazorkit SDK** integ
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/yourusername/lazorkit-starter.git
+git clone https://github.com/TheBBz/lazorkit-starter.git
 cd lazorkit-starter
 ```
 
