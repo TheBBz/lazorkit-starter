@@ -284,6 +284,28 @@ Lazorkit automatically persists wallet sessions using the browser's IndexedDB. W
 
 This happens automatically - you don't need to write any code! The `isConnected` state will be `true` after the provider initializes if a valid session exists.
 
+### Cross-Device Session Persistence
+
+Passkeys can sync across devices automatically through your operating system's password manager:
+
+| Platform | Sync Method | Devices |
+|----------|-------------|---------|
+| **Apple** | iCloud Keychain | iPhone, iPad, Mac |
+| **Google** | Google Password Manager | Android, Chrome on any device |
+| **Microsoft** | Microsoft Account | Windows devices |
+
+**How it works:**
+1. User creates a passkey on Device A (e.g., iPhone)
+2. Passkey syncs automatically via iCloud/Google/Microsoft
+3. User visits your app on Device B (e.g., Mac)
+4. User clicks "Connect" and selects the synced passkey
+5. Same wallet is now accessible on both devices!
+
+**No code required** - this is handled entirely by the operating system. Users just need to:
+- Have their password manager sync enabled
+- Click "Connect" on the new device
+- Select their existing passkey when prompted
+
 ### Checking Session on Load
 
 If you need to show a loading state while the session is being restored:
