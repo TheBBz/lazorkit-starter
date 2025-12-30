@@ -16,8 +16,8 @@ export const LAZORKIT_CONFIG = {
   // Lazorkit Portal URL for passkey authentication
   portalUrl: process.env.NEXT_PUBLIC_LAZORKIT_PORTAL_URL || 'https://portal.lazor.sh',
 
-  // Paymaster URL for gasless transactions
-  paymasterUrl: process.env.NEXT_PUBLIC_LAZORKIT_PAYMASTER_URL || 'https://lazorkit-paymaster.onrender.com',
+  // Paymaster URL for gasless transactions (Kora service)
+  paymasterUrl: process.env.NEXT_PUBLIC_LAZORKIT_PAYMASTER_URL || 'https://kora.devnet.lazorkit.com',
 } as const;
 
 // USDC Token Addresses
