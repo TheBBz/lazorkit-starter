@@ -14,17 +14,22 @@
 import { useWallet } from '@lazorkit/wallet';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { useState } from 'react';
 import { ConnectButton } from '@/components/wallet/ConnectButton';
 import { WalletInfo } from '@/components/wallet/WalletInfo';
 import { UsdcTransferForm } from '@/components/transfer/UsdcTransferForm';
+import { TokenSwapForm } from '@/components/swap/TokenSwapForm';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Fingerprint, Home } from 'lucide-react';
+import { Fingerprint, Home, Send, ArrowDownUp } from 'lucide-react';
 import Link from 'next/link';
+
+type ActiveTab = 'transfer' | 'swap';
 
 export default function Dashboard() {
   const { isConnected } = useWallet();
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState<ActiveTab>('transfer');
 
   // Redirect to home if not connected
   useEffect(() => {
@@ -112,9 +117,32 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Right Column: Transfer Form */}
-            <div>
-              <UsdcTransferForm />
+            {/* Right Column: Transfer/Swap Forms */}
+            <div className="space-y-4">
+              {/* Tab Buttons */}
+              <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                <Button
+                  variant={activeTab === 'transfer' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="flex-1 gap-2"
+                  onClick={() => setActiveTab('transfer')}
+                >
+                  <Send className="h-4 w-4" />
+                  Send
+                </Button>
+                <Button
+                  variant={activeTab === 'swap' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="flex-1 gap-2"
+                  onClick={() => setActiveTab('swap')}
+                >
+                  <ArrowDownUp className="h-4 w-4" />
+                  Swap
+                </Button>
+              </div>
+
+              {/* Active Form */}
+              {activeTab === 'transfer' ? <UsdcTransferForm /> : <TokenSwapForm />}
             </div>
           </div>
 
