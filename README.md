@@ -15,7 +15,7 @@ A Next.js starter template demonstrating **Lazorkit SDK** integration with passk
 
 ## Demo
 
-[Live Demo on Vercel](https://your-deployment-url.vercel.app) (Coming soon)
+[Live Demo on Vercel](https://lazorkit-starter-five.vercel.app)
 
 ## Quick Start
 
